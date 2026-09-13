@@ -44,6 +44,7 @@ From the repository root:
 
 ```powershell
 python -m venv backend\.venv
+backend\.venv\Scripts\python.exe -m pip install --upgrade "pip>=26.2.1"
 backend\.venv\Scripts\python.exe -m pip install -e "backend[dev]"
 ```
 
