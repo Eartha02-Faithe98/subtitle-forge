@@ -4,23 +4,35 @@ import { describe, expect, it, vi } from "vitest";
 import Home from "./page";
 
 describe("Home", () => {
-  it("presents the Phase 0 product foundation truthfully", () => {
+  it("presents the Phase 1 local workflow truthfully", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(() => new Promise<Response>(() => undefined)),
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ status: "ok" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
     );
 
     render(<Home />);
 
     expect(
-      screen.getByRole("heading", { name: "Subtitle Forge" }),
+      screen.getByRole("heading", {
+        level: 1,
+        name: "把媒體鍛造成雙語字幕。",
+      }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("AI bilingual media knowledge tool"),
+      screen.getByRole("heading", { name: "建立字幕工作" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Phase 0 foundation/i)).toBeInTheDocument();
+    expect(screen.getByText(/YouTube、MP3 或 MP4/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Local Whisper/).length).toBeGreaterThanOrEqual(
+      1,
+    );
+    expect(await screen.findByText("本機後端已連線")).toBeInTheDocument();
     expect(
-      screen.getByText(/media processing arrives in Phase 1/i),
-    ).toBeInTheDocument();
+      screen.queryByText(/RAG|billing|authentication/i),
+    ).not.toBeInTheDocument();
   });
 });

@@ -7,6 +7,7 @@ $backendDirectory = Join-Path $projectRoot "backend"
 $frontendDirectory = Join-Path $projectRoot "frontend"
 $backendPython = Join-Path $backendDirectory ".venv\Scripts\python.exe"
 $runtimeDirectory = Join-Path $projectRoot "runtime"
+$defaultDataRoot = Join-Path $runtimeDirectory "data\jobs"
 
 if (-not (Test-Path -LiteralPath $backendPython)) {
     throw "Backend environment is missing. Follow the README setup steps first."
@@ -25,8 +26,19 @@ if (-not $env:SUBTITLE_FORGE_ALLOWED_ORIGINS) {
 if (-not $env:NEXT_PUBLIC_API_BASE_URL) {
     $env:NEXT_PUBLIC_API_BASE_URL = $backendUrl
 }
+if (-not $env:SUBTITLE_FORGE_DATA_ROOT) {
+    $env:SUBTITLE_FORGE_DATA_ROOT = $defaultDataRoot
+}
 
-New-Item -ItemType Directory -Force -Path $runtimeDirectory | Out-Null
+$resolvedRuntime = [System.IO.Path]::GetFullPath($runtimeDirectory)
+$resolvedDefaultData = [System.IO.Path]::GetFullPath($defaultDataRoot)
+if (-not $resolvedDefaultData.StartsWith($resolvedRuntime + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "The managed data directory must stay inside runtime."
+}
+New-Item -ItemType Directory -Force -Path $resolvedRuntime | Out-Null
+if ($env:SUBTITLE_FORGE_DATA_ROOT -eq $defaultDataRoot) {
+    New-Item -ItemType Directory -Force -Path $resolvedDefaultData | Out-Null
+}
 
 function Wait-ForUrl {
     param(
@@ -76,6 +88,18 @@ try {
     Wait-ForUrl -Url "$backendUrl/health"
     Wait-ForUrl -Url $frontendUrl
 
+    $readiness = Invoke-RestMethod -Uri "$backendUrl/readiness" -TimeoutSec 10
+    Write-Host "Processing readiness: $($readiness.status)"
+    foreach ($dependency in $readiness.dependencies.PSObject.Properties) {
+        $state = if ($dependency.Value.available) { "ready" } else { "needs setup" }
+        Write-Host "  $($dependency.Name): $state - $($dependency.Value.message)"
+    }
+
+    $databasePath = Join-Path (Split-Path -Parent $env:SUBTITLE_FORGE_DATA_ROOT) "jobs.sqlite3"
+    if (-not (Test-Path -LiteralPath $databasePath -PathType Leaf)) {
+        throw "SQLite initialization did not create the managed job database."
+    }
+
     if ($backendProcess.HasExited -or $frontendProcess.HasExited) {
         throw "A Subtitle Forge development process exited during startup. Check runtime logs."
     }
@@ -83,6 +107,7 @@ try {
     Write-Host "Subtitle Forge is running."
     Write-Host "Frontend: $frontendUrl"
     Write-Host "Backend:  $backendUrl"
+    Write-Host "Data:     $env:SUBTITLE_FORGE_DATA_ROOT"
     Write-Host "Press Ctrl+C to stop both processes."
 
     while (-not $backendProcess.HasExited -and -not $frontendProcess.HasExited) {

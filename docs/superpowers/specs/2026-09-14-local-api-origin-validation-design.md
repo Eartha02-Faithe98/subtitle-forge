@@ -16,12 +16,12 @@ model.
 
 ## Decision
 
-The job-creation route accepts a request without an `Origin` header so local
-command-line and automated clients continue to work. If an `Origin` header is
-present, the route accepts it only when it is an exact member of the validated
-`SUBTITLE_FORGE_ALLOWED_ORIGINS` setting. An absent, malformed, or unlisted
-origin is rejected with a safe `403 Forbidden` response before any job side
-effect.
+The application uses an ASGI middleware for job creation requests. It accepts a
+request without an `Origin` header so local command-line and automated clients
+continue to work. If an `Origin` header is present, it accepts it only when it
+is an exact member of the validated `SUBTITLE_FORGE_ALLOWED_ORIGINS` setting.
+A malformed or unlisted origin is rejected with a safe `403 Forbidden` response
+before any job side effect.
 
 The settings validator remains the single authority for the allowlist: each
 origin must be a credential-free HTTP(S) origin with no query, fragment, or
@@ -29,7 +29,8 @@ non-root path, and wildcard origins are forbidden.
 
 ## Request Flow
 
-1. The route reads the optional `Origin` request header.
+1. The middleware reads the optional `Origin` request header before FastAPI
+   parses the multipart request body.
 2. If it is absent, processing continues for local CLI compatibility.
 3. If it is present, it is parsed as an origin and compared to the configured
    allowlist after normalization of a trailing slash.
